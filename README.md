@@ -136,31 +136,438 @@ if (best) game.move(best);
 ## Example: React Integration
 
 ```tsx
-import { Checkers, CheckersGameState } from '@ayshrj/checkers.js';
+"use client";
 
-function CheckersBoard() {
-  const [game] = useState(new Checkers());
-  const [state, setState] = useState<CheckersGameState>(game.getCurrentState());
+import React, { useEffect, useState } from "react";
+import { Checkers, CheckersMove, Piece } from "@ayshrj/checkers.js";
+
+interface Position {
+  row: number;
+  col: number;
+}
+
+const CheckerPage = () => {
+  const [checkers, setCheckers] = useState(new Checkers());
+  const [board, setBoard] = useState<(Piece | null)[][]>(
+    checkers.getCurrentState().board
+  );
+  const [difficulty, setDifficulty] = useState<2 | 4 | 6>(4);
+  const [selectedPos, setSelectedPos] = useState<Position | null>(null);
+  const [validMoves, setValidMoves] = useState<CheckersMove[]>([]);
+  const [gameStatus, setGameStatus] = useState<string>("Red to move");
+  const [botThinking, setBotThinking] = useState(false);
+  const [gameMode, setGameMode] = useState<"bot" | "human" | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const updateBoard = () => {
+    setBoard(checkers.getCurrentState().board.map((row) => [...row]));
+    updateGameStatus();
+  };
+
+  const updateGameStatus = () => {
+    const allowedMoves = checkers.getCurrentState().allowedMoves;
+    if (allowedMoves.length === 0) {
+      const winner =
+        checkers.getCurrentState().turn === "red"
+          ? gameMode === "bot"
+            ? "Green"
+            : "Black"
+          : "Red";
+      setGameStatus(`Game over! ${winner} wins!`);
+    } else {
+      setGameStatus(
+        `${
+          checkers.getCurrentState().turn.charAt(0).toUpperCase() +
+          checkers.getCurrentState().turn.slice(1)
+        } to move`
+      );
+    }
+  };
+
+  const handleSquareClick = (row: number, col: number) => {
+    if (
+      botThinking ||
+      (gameMode === "bot" && checkers.getCurrentState().turn === "black")
+    )
+      return;
+
+    const piece = board[row][col];
+    if (!selectedPos) {
+      if (piece && piece.color === checkers.getCurrentState().turn) {
+        setSelectedPos({ row, col });
+        const allowedMoves = checkers.getCurrentState().allowedMoves;
+        const pieceMoves = allowedMoves.filter(
+          (move) => move.from.row === row && move.from.col === col
+        );
+        setValidMoves(pieceMoves);
+      }
+    } else {
+      const move = validMoves.find((m) => {
+        const final = m.path[m.path.length - 1];
+        return final.row === row && final.col === col;
+      });
+      if (move) {
+        const moveSuccess = checkers.move(move);
+        if (moveSuccess) {
+          updateBoard();
+          setSelectedPos(null);
+          setValidMoves([]);
+        }
+      } else {
+        if (piece && piece.color === checkers.getCurrentState().turn) {
+          setSelectedPos({ row, col });
+          const allowedMoves = checkers.getCurrentState().allowedMoves;
+          const pieceMoves = allowedMoves.filter(
+            (move) => move.from.row === row && move.from.col === col
+          );
+          setValidMoves(pieceMoves);
+        } else {
+          setSelectedPos(null);
+          setValidMoves([]);
+        }
+      }
+    }
+  };
 
   useEffect(() => {
-    game.on('stateChange', setState);
-    return () => game.removeAllListeners();
-  }, [game]);
+    if (gameMode === "bot" && checkers.getCurrentState().turn === "black") {
+      setBotThinking(true);
+      setTimeout(() => {
+        const best = checkers.bestMove(difficulty);
+        if (best) {
+          checkers.move(best);
+          updateBoard();
+        }
+        setBotThinking(false);
+      }, 500);
+    }
+  }, [board, gameMode, difficulty]);
+
+  const startNewMatch = (mode: "bot" | "human") => {
+    const newCheckers = new Checkers();
+    setCheckers(newCheckers);
+    setBoard(newCheckers.getCurrentState().board.map((row) => [...row]));
+    setSelectedPos(null);
+    setValidMoves([]);
+    setGameStatus(
+      `${
+        newCheckers.getCurrentState().turn.charAt(0).toUpperCase() +
+        newCheckers.getCurrentState().turn.slice(1)
+      } to move`
+    );
+    setGameMode(mode);
+    setIsModalOpen(false);
+  };
+
+  const modalStyle: React.CSSProperties = {
+    position: "fixed",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    backgroundColor: "white",
+    padding: "20px",
+    borderRadius: "8px",
+    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+    zIndex: 1000,
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: "10px 20px",
+    borderRadius: "4px",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "16px",
+  };
 
   return (
-    <div className="board">
-      {state.board.map((row, i) => (
-        <div key={i} className="row">
-          {row.map((piece, j) => (
-            <div key={`${i}-${j}`} className="cell">
-              {piece && <div className={`piece ${piece.color}`} />}
-            </div>
-          ))}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "16px",
+        height: "100vh",
+      }}
+    >
+      {/* Game Status */}
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+        }}
+      >
+        <div style={{ width: "100%", textAlign: "center" }}>
+          <div style={{ fontSize: "18px", fontWeight: "500" }}>
+            {gameMode === "bot"
+              ? gameStatus.replace("Black", "Green").replace("black", "green")
+              : gameStatus}
+            {botThinking && (
+              <span style={{ color: "#0000FF", marginLeft: "8px" }}>
+                Bot is thinking...
+              </span>
+            )}
+          </div>
         </div>
-      ))}
+        {/* Board */}
+        <div
+          style={{
+            width: "100%",
+            aspectRatio: "1/1",
+            backgroundColor: "#f0f0f0",
+            borderRadius: "8px",
+            position: "relative",
+          }}
+        >
+          {/* Files (columns) */}
+          <div
+            style={{
+              position: "absolute",
+              top: "0",
+              left: "0",
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-around",
+              padding: "0 16px",
+            }}
+          >
+            {["a", "b", "c", "d", "e", "f", "g", "h"].map((file) => (
+              <div key={file} style={{ fontSize: "12px", opacity: "0.7" }}>
+                {file}
+              </div>
+            ))}
+          </div>
+          {/* Ranks (rows) */}
+          <div
+            style={{
+              position: "absolute",
+              top: "0",
+              left: "0",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-around",
+              alignItems: "center",
+              padding: "16px 0",
+            }}
+          >
+            {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => (
+              <div key={rank} style={{ fontSize: "12px", opacity: "0.7" }}>
+                {rank}
+              </div>
+            ))}
+          </div>
+          {/* Render the board grid */}
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "grid",
+              padding: "16px",
+              gridTemplateColumns: "repeat(8, 1fr)",
+              gridTemplateRows: "repeat(8, 1fr)",
+            }}
+          >
+            {board.map((row, rowIndex) =>
+              row.map((col, colIndex) => {
+                const isDarkSquare = (rowIndex + colIndex) % 2 === 1;
+                const isSelected =
+                  selectedPos &&
+                  selectedPos.row === rowIndex &&
+                  selectedPos.col === colIndex;
+                const isValidMove = validMoves.some((move) => {
+                  const final = move.path[move.path.length - 1];
+                  return final.row === rowIndex && final.col === colIndex;
+                });
+                return (
+                  <div
+                    key={`${rowIndex}-${colIndex}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderBottom: "1px solid #ccc",
+                      borderRight: "1px solid #ccc",
+                      backgroundColor: isDarkSquare ? "#e0e0e0" : "#f8f8f8",
+                      border: isSelected ? "4px solid #0000FF" : "none",
+                      position: "relative",
+                      ...(isValidMove ? { backgroundColor: "#00FF0030" } : {}),
+                    }}
+                    onClick={() => handleSquareClick(rowIndex, colIndex)}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: "0",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {col && (
+                        <div
+                          style={{
+                            borderRadius: "50%",
+                            height: "60%",
+                            width: "60%",
+                            backgroundColor:
+                              col.color === "black" ? "#00FF00" : "#FF0000",
+                            position: "absolute",
+                          }}
+                        >
+                          {col.type === "king" && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: "50%",
+                                top: "50%",
+                                transform: "translate(-50%, -50%)",
+                                height: "50%",
+                                width: "50%",
+                                backgroundColor: "white",
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+      {/* Controls */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          width: "100%",
+        }}
+      >
+        {gameMode === "bot" && (
+          <div
+            style={{
+              display: "flex",
+              width: "100%",
+              gap: "8px",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            {[
+              { value: 2, label: "Easy" },
+              { value: 4, label: "Medium" },
+              { value: 6, label: "Hard" },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                style={{
+                  ...buttonStyle,
+                  width: "33%",
+                  backgroundColor: value === difficulty ? "#00FF00" : "#ccc",
+                  color: value === difficulty ? "white" : "black",
+                }}
+                onClick={() => setDifficulty(value as 2 | 4 | 6)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          style={{
+            ...buttonStyle,
+            backgroundColor: "#0000FF",
+            color: "white",
+            width: "100%",
+          }}
+          onClick={() => setIsModalOpen(true)}
+        >
+          Reset
+        </button>
+      </div>
+
+      {/* Initial Game Mode Selection Modal */}
+      {gameMode === null && (
+        <div style={modalStyle}>
+          <h2 style={{ marginBottom: "16px" }}>Select Game Mode</h2>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-around",
+              gap: "16px",
+            }}
+          >
+            <button
+              style={{
+                ...buttonStyle,
+                width: "50%",
+                backgroundColor: "#00FF00",
+                color: "white",
+              }}
+              onClick={() => startNewMatch("bot")}
+            >
+              Vs Bot
+            </button>
+            <button
+              style={{
+                ...buttonStyle,
+                width: "50%",
+                backgroundColor: "#00FF00",
+                color: "white",
+              }}
+              onClick={() => startNewMatch("human")}
+            >
+              Vs Human
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Game Mode Modal */}
+      {isModalOpen && (
+        <div style={modalStyle}>
+          <h2 style={{ marginBottom: "16px" }}>Reset Game</h2>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-around",
+              gap: "16px",
+            }}
+          >
+            <button
+              style={{
+                ...buttonStyle,
+                width: "50%",
+                backgroundColor: "#00FF00",
+                color: "white",
+              }}
+              onClick={() => startNewMatch("bot")}
+            >
+              Vs Bot
+            </button>
+            <button
+              style={{
+                ...buttonStyle,
+                width: "50%",
+                backgroundColor: "#00FF00",
+                color: "white",
+              }}
+              onClick={() => startNewMatch("human")}
+            >
+              Vs Human
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default CheckerPage;
 ```
 
 ---
