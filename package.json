@@ -1,6 +1,6 @@
 {
   "name": "@ayshrj/checkers.js",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A TypeScript-based headless Checker game engine for simulating game logic, AI moves, and game state management.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +10,7 @@
   },
   "homepage": "https://github.com/ayshrj/checkers.js#readme",
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
     "prepare": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "npm run build"
@@ -26,6 +26,7 @@
   "license": "MIT",
   "devDependencies": {
     "@types/events": "^3.0.3",
+    "tsup": "^8.4.0",
     "typescript": "^5.8.2"
   },
   "dependencies": {
