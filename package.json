@@ -1,6 +1,6 @@
 {
   "name": "@ayshrj/checkers.js",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A TypeScript-based headless Checker game engine for simulating game logic, AI moves, and game state management.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,7 +16,7 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "ludo",
+    "checkers",
     "board game",
     "typescript",
     "game",
